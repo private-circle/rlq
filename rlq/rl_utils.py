@@ -1,22 +1,14 @@
 import fractions
 import os
-from typing import Union
 
 from arelle import PackageManager
 from arelle.Cntlr import Cntlr
 from arelle.ModelDtsObject import ModelConcept
-from arelle.ModelInstanceObject import ModelFact, ModelContext
+from arelle.ModelInstanceObject import ModelFact
 from arelle.ModelManager import ModelManager
 from arelle.ModelValue import dateTime
 from arelle.ValidateXbrlCalcs import roundValue
 from arelle.ValidateXbrlDimensions import loadDimensionDefaults
-
-
-def convert_to_fy(dt):
-    if dt.day == 1 and dt.month == 1:
-        return dt.year - 1
-    else:
-        return dt.year
 
 
 def parsed_value(fact: ModelFact):
@@ -46,13 +38,6 @@ def parsed_value(fact: ModelFact):
     elif concept.isTextBlock:
         return ' '.join(val.split())
     return val
-
-
-def context_hash(fact_or_context: Union[ModelContext, ModelFact]):
-    context = fact_or_context.context if isinstance(fact_or_context, ModelFact) else fact_or_context
-    if context is None:
-        return hash(None)
-    return hash((context.entityIdentifierHash, context.dimsHash, context.endDatetime))
 
 
 def save_taxonomy_config(taxonomies_dir, controller=None):

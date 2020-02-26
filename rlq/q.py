@@ -7,9 +7,23 @@ from arelle.ModelInstanceObject import ModelFact, ModelContext, ModelDimensionVa
 from arelle.ModelValue import qname, QName
 from arelle.ModelXbrl import ModelXbrl
 
-from rlq.fact_set import FactSet
 from rlq.expr import properties as props
-from rlq.rl_utils import parsed_value, context_hash, convert_to_fy
+from rlq.fact_set import FactSet
+from rlq.rl_utils import parsed_value
+
+
+def convert_to_fy(dt):
+    if dt.day == 1 and dt.month == 1:
+        return dt.year - 1
+    else:
+        return dt.year
+
+
+def context_hash(fact_or_context: Union[ModelContext, ModelFact]):
+    context = fact_or_context.context if isinstance(fact_or_context, ModelFact) else fact_or_context
+    if context is None:
+        return hash(None)
+    return hash((context.entityIdentifierHash, context.dimsHash, context.endDatetime))
 
 
 class QueryExecutor(object):
