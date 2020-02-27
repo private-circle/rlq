@@ -1,6 +1,7 @@
 import abc
 from typing import Set
 
+from rlq.evaluators.base import ExprEvaluator
 from rlq.expr import _op
 
 DEBUG = True
@@ -8,23 +9,23 @@ DEBUG = True
 
 class BaseExpr(object, metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def evaluate(self, fact_or_set_or_list, model):
+    def evaluate(self, fact_or_set_or_list, evaluator: ExprEvaluator):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def evaluate_display(self, model, show='label') -> str:
+    def evaluate_display(self, evaluator: ExprEvaluator, show='label') -> str:
         raise NotImplementedError
 
-    def evaluate_aggregate(self, fact_set_list, model):
+    def evaluate_aggregate(self, fact_set_list, evaluator: ExprEvaluator):
         if self.is_aggregate:
-            return self.evaluate(fact_set_list, model)
+            return self.evaluate(fact_set_list, evaluator)
         elif DEBUG and len(fact_set_list) > 0:
-            values = set(self.evaluate(fact_set_list, model))
+            values = set(self.evaluate(fact_set_list, evaluator))
             assert len(values) == 1
             return next(iter(values))
         else:
             first_fact_set = next(iter(fact_set_list), None)
-            return self.evaluate(first_fact_set, model)
+            return self.evaluate(first_fact_set, evaluator)
 
     @property
     def concept_names(self) -> Set[str]:
@@ -128,10 +129,10 @@ class Literal(BaseExpr):
     def __init__(self, value):
         self.value = value
 
-    def evaluate(self, fact_or_set_or_list, model):
+    def evaluate(self, fact_or_set_or_list, evaluator):
         return self.value
 
-    def evaluate_display(self, model, show='label'):
+    def evaluate_display(self, evaluator, show='label'):
         return str(self.value)
 
     def __repr__(self):
@@ -142,10 +143,10 @@ class Constant(BaseExpr):
     def __init__(self, value: str):
         self.value = value
 
-    def evaluate(self, fact_or_set_or_list, model):
+    def evaluate(self, fact_or_set_or_list, evaluator):
         return self
 
-    def evaluate_display(self, model, show='label'):
+    def evaluate_display(self, evaluator, show='label'):
         return self.value.upper()
 
     def __repr__(self):
@@ -189,21 +190,21 @@ class BinaryExpr(BaseExpr):
     def missing_operand_value(self):
         return False if self.opname in self.BOOL_OPS else None
 
-    def evaluate(self, fact_or_set_or_list, model):
+    def evaluate(self, fact_or_set_or_list, evaluator):
         if not self.is_aggregate and isinstance(fact_or_set_or_list, list):
-            return [self.evaluate(fs, model) for fs in fact_or_set_or_list]
-        value1 = self.operand1.evaluate(fact_or_set_or_list, model)
+            return [self.evaluate(fs, evaluator) for fs in fact_or_set_or_list]
+        value1 = self.operand1.evaluate(fact_or_set_or_list, evaluator)
         if value1 is None:
             return self.missing_operand_value
-        value2 = self.operand2.evaluate(fact_or_set_or_list, model)
+        value2 = self.operand2.evaluate(fact_or_set_or_list, evaluator)
         if value2 is None:
             return self.missing_operand_value
         return self.operator(value1, value2)
 
-    def evaluate_display(self, model, show='label'):
-        return '({} {} {})'.format(self.operand1.evaluate_display(model, show=show),
+    def evaluate_display(self, evaluator, show='label'):
+        return '({} {} {})'.format(self.operand1.evaluate_display(evaluator, show=show),
                                    '$' + self.opname.upper(),
-                                   self.operand2.evaluate_display(model, show=show))
+                                   self.operand2.evaluate_display(evaluator, show=show))
 
     def __repr__(self):
         return '{}({}, {}, {})'.format(type(self).__name__, self.opname, self.operand1, self.operand2)

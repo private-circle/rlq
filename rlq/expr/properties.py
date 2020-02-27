@@ -1,30 +1,32 @@
 import abc
 
+from rlq.evaluators.base import ExprEvaluator
 from rlq.expr.base import BaseExpr, DEBUG
-from rlq.expr.year import YearExpr
+from rlq.expr.year import Year
 from rlq.fact_set import FactSet
 
 
 class Property(BaseExpr, metaclass=abc.ABCMeta):
-    def evaluate(self, fact_or_set_or_list, model):
+    def evaluate(self, fact_or_set_or_list, evaluator):
         if isinstance(fact_or_set_or_list, list):
-            return [self.evaluate(fs, model) for fs in fact_or_set_or_list]
+            return [self.evaluate(fs, evaluator) for fs in fact_or_set_or_list]
         elif isinstance(fact_or_set_or_list, FactSet):
-            return self.evaluate_set(fact_or_set_or_list, model)
+            return self.evaluate_set(fact_or_set_or_list, evaluator)
         else:
-            return self.evaluate_fact(fact_or_set_or_list, model)
+            return self.evaluate_fact(fact_or_set_or_list, evaluator)
 
-    def evaluate_fact(self, fact, model):
-        return model.get_property(fact, self)
+    @abc.abstractmethod
+    def evaluate_fact(self, fact, evaluator: ExprEvaluator):
+        pass
 
-    def evaluate_set(self, fact_set, model):
+    def evaluate_set(self, fact_set, evaluator):
         if DEBUG and len(fact_set) > 0:
-            values = {model.get_property(f, self) for f in fact_set}
+            values = {self.evaluate_fact(f, evaluator) for f in fact_set}
             assert len(values) == 1
             return next(iter(values))
         else:
             first_fact = next(iter(fact_set), None)
-            return model.get_property(first_fact, self)
+            return self.evaluate_fact(first_fact, evaluator)
 
     def __repr__(self):
         prop_type = type(self).__name__
@@ -34,9 +36,10 @@ class Property(BaseExpr, metaclass=abc.ABCMeta):
         return '{}({})'.format(prop_type, ', '.join(attrs))
 
 
-class ConceptProperty(Property):
-    def __init__(self, name: str=None):
+class ConceptProperty(Property, metaclass=abc.ABCMeta):
+    def __init__(self, name: str=None, label_role=None):
         self.name = name
+        self.label_role = label_role
 
     @property
     def concept_names(self):
@@ -44,15 +47,15 @@ class ConceptProperty(Property):
             return {self.name}
         return set()
 
-    def evaluate_set(self, fact_set, model):
+    def evaluate_set(self, fact_set, evaluator):
         if self.name is None:
             raise NotImplementedError('Cannot evaluate_set for {} with no name'.format(type(self).__name__))
-        fact = fact_set.by_concept(model).get(self.name)
-        return model.get_property(fact, self)
+        fact = fact_set.by_concept(evaluator).get(self.name)
+        return self.evaluate_fact(fact, evaluator)
 
-    def evaluate_display(self, model, show='label'):
+    def evaluate_display(self, evaluator, show='label'):
         if show == 'label':
-            concept_label = model.get_property(None, ConceptLabel(self.name))
+            concept_label = evaluator.get_concept_label(None, self.name, self.label_role)
             return concept_label if concept_label is not None else self.name
         elif show == 'name':
             return self.name
@@ -64,35 +67,27 @@ class ConceptProperty(Property):
 
 
 class Concept(ConceptProperty):
-    pass
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_concept(fact, self.name)
 
 
 class ConceptName(ConceptProperty):
-    pass
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_concept_name(fact, self.name)
 
 
 class ConceptLabel(ConceptProperty):
-    def __init__(self, name, preferred_label=None):
-        super(ConceptLabel, self).__init__(name)
-        self.preferred_label = preferred_label
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_concept_label(fact, self.name, self.label_role)
 
 
 class ConceptValue(ConceptProperty):
-    def __init__(self, name, default=None):
-        super(ConceptValue, self).__init__(name)
+    def __init__(self, name, default=None, label_role=None):
+        super(ConceptValue, self).__init__(name, label_role)
         self.default = default
 
-    def evaluate_fact(self, fact, model):
-        value = super(ConceptValue, self).evaluate_fact(fact, model)
-        if value is None:
-            return self.default
-        return value
-
-    def evaluate_set(self, fact_set, model):
-        value = super(ConceptValue, self).evaluate_set(fact_set, model)
-        if value is None:
-            return self.default
-        return value
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_concept_value(fact, self.default)
 
 
 CN = ConceptName
@@ -110,15 +105,15 @@ class DimProperty(ContextProperty, metaclass=abc.ABCMeta):
         return True
 
 
-class DimValProperty(DimProperty):
-    def __init__(self, axis_name=None, include_defaults=True):
+class DimValProperty(DimProperty, metaclass=abc.ABCMeta):
+    def __init__(self, axis_name=None, include_defaults=True, label_role=None):
         self.axis_name = axis_name
         self.include_defaults = include_defaults
+        self.label_role = label_role
 
-    def evaluate_display(self, model, show='label'):
+    def evaluate_display(self, evaluator, show='label'):
         if show == 'label':
-            axis_label = model.get_property(None, ConceptLabel(self.axis_name))
-            return axis_label.replace(' [Axis]', '') if axis_label is not None else axis_label
+            return evaluator.get_concept_label(None, self.axis_name, self.label_role)
         elif show == 'name':
             return self.axis_name
         else:
@@ -129,23 +124,23 @@ class DimValProperty(DimProperty):
 
 
 class DimMember(DimValProperty):
-    pass
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_dim_member(fact, self.axis_name, self.include_defaults)
 
 
 class DimMemberName(DimValProperty):
-    pass
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_dim_member_name(fact, self.axis_name, self.include_defaults)
 
 
 class DimMemberLabel(DimValProperty):
-    def __init__(self, axis_name, include_defaults=True, preferred_label=None):
-        super(DimMemberLabel, self).__init__(axis_name, include_defaults)
-        self.preferred_label = preferred_label
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_dim_member_label(fact, self.axis_name, self.include_defaults, self.label_role)
 
 
 class DimMemberValue(DimValProperty):
-    def __init__(self, axis_name, include_defaults=True, preferred_label=None):
-        super(DimMemberValue, self).__init__(axis_name, include_defaults)
-        self.preferred_label = preferred_label
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_dim_member_value(fact, self.axis_name, self.include_defaults, self.label_role)
 
 
 DN = DimMemberName
@@ -153,17 +148,11 @@ DL = DimMemberLabel
 D = DimMemberValue
 
 
-class SingletonProperty(Property, metaclass=abc.ABCMeta):
-    _instance = None
+class DimAxes(DimProperty):
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_dim_axes(fact)
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(SingletonProperty, cls).__new__(cls)
-        return cls._instance
-
-
-class DimAxes(DimProperty, SingletonProperty):
-    def evaluate_display(self, model, show='label'):
+    def evaluate_display(self, evaluator, show='label'):
         return 'Dimensions'
 
     def __repr__(self):
@@ -173,48 +162,87 @@ class DimAxes(DimProperty, SingletonProperty):
 Ax = DimAxes
 
 
-class Period(ContextProperty):
+class PeriodProperty(ContextProperty, metaclass=abc.ABCMeta):
+    pass
+
+
+class Period(PeriodProperty):
     def __init__(self, forever_dt=None):
         self.forever_dt = forever_dt
 
-    def evaluate_display(self, model, show='label'):
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_period(fact, self.forever_dt)
+
+    def evaluate_display(self, evaluator, show='label'):
         return 'Period'
 
 
-class PeriodStr(ContextProperty):
-    def __init__(self, instant_format='{:%d/%m/%Y}', duration_format='{0:%d/%m/%Y} to {1:%d/%m/%Y}', forever_format=''):
+class PeriodStr(PeriodProperty):
+    def __init__(self, instant_format='{:%d/%m/%Y}', duration_format='{0:%d/%m/%Y} to {1:%d/%m/%Y}',
+                 forever_format=''):
         self.instant_format = instant_format
         self.duration_format = duration_format
         self.forever_format = forever_format
 
-    def evaluate_display(self, model, show='label'):
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_period_str(fact, self.instant_format, self.duration_format, self.forever_format)
+
+    def evaluate_display(self, evaluator, show='label'):
         return 'Period'
 
 
-class Date(ContextProperty):
-    def evaluate_display(self, model, show='label'):
-        return 'Instant / Period End Date'
+class StartDatetime(PeriodProperty):
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_start_datetime(fact)
+
+    def evaluate_display(self, evaluator, show='label'):
+        return 'Start Datetime'
 
 
-class FY(ContextProperty):
-    CURR = YearExpr('curr')
-    PREV = YearExpr('prev')
-    PREV_PREV = YearExpr('prev_prev')
+class EndDatetime(PeriodProperty):
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_end_datetime(fact)
 
-    def evaluate_display(self, model, show='label'):
+    def evaluate_display(self, evaluator, show='label'):
+        return 'End Datetime'
+
+
+class EndDate(PeriodProperty):
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_end_date(fact)
+
+    def evaluate_display(self, evaluator, show='label'):
+        return 'End Datetime'
+
+
+class FY(PeriodProperty):
+    CURR = Year('curr')
+    PREV = Year('prev')
+    PREV_PREV = Year('prev_prev')
+
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_fy(fact)
+
+    def evaluate_display(self, evaluator, show='label'):
         return 'FY'
 
 
-class ContextRef(ContextProperty, SingletonProperty):
-    def evaluate_display(self, model, show='label'):
+class ContextID(ContextProperty):
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_context_id(fact)
+
+    def evaluate_display(self, evaluator, show='label'):
         return 'Context ID'
 
 
-CtxID = ContextRef
+CtxID = ContextID
 
 
-class ContextHashNoPeriodType(ContextProperty, SingletonProperty):
-    def evaluate_display(self, model, show='label'):
+class ContextHashNoPeriodType(ContextProperty):
+    def evaluate_fact(self, fact, evaluator):
+        return evaluator.get_context_hash_no_period_type(fact)
+
+    def evaluate_display(self, evaluator, show='label'):
         return 'Context hash w/o period type'
 
 

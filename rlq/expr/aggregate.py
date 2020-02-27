@@ -22,18 +22,18 @@ class Aggregate(BaseExpr, metaclass=abc.ABCMeta):
     def is_aggregate(self):
         return True
 
-    def evaluate(self, fact_or_set_or_list, model):
+    def evaluate(self, fact_or_set_or_list, evaluator):
         assert isinstance(fact_or_set_or_list, list)
-        values = self.expr.evaluate(fact_or_set_or_list, model)
+        values = self.expr.evaluate(fact_or_set_or_list, evaluator)
         if self.ignore_none:
             values = [v for v in values if v is not None]
         if not values:
             return self.empty
         return self.aggregate(values)
 
-    def evaluate_display(self, model, show='label'):
+    def evaluate_display(self, evaluator, show='label'):
         return '{}({})'.format(type(self).__name__.upper(),
-                               self.expr.evaluate_display(model, show=show))
+                               self.expr.evaluate_display(evaluator, show=show))
 
     @abc.abstractmethod
     def aggregate(self, values):

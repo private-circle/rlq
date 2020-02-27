@@ -1,4 +1,5 @@
-from rlq import *
+from rlq.expr import *
+from rlq import get_query_executor
 
 sample_qspecs = [
 
@@ -97,17 +98,15 @@ sample_qspecs = [
 if __name__ == '__main__':
     from pprint import pprint
     import os
-    from rlq.rl_utils import load_xbrl_model
 
     xbrl_samples_dir = '/home/privatecircle/Downloads/XBRL Samples'
-    xbrl_model = load_xbrl_model(os.path.join(xbrl_samples_dir, '2019', 'Instance_Bundl.xml'))  # ind-as
-    # xbrl_model = load_xbrl_model(os.path.join(
+    executor = get_query_executor(file_path=os.path.join(xbrl_samples_dir, '2019', 'Instance_Bundl.xml'))  # ind-as
+    # executor = get_query_executor(file_path=os.path.join(
     #     xbrl_samples_dir, '2016', 'L15140MH1988PLC049208-Con-FinancialStatements-2016-03-31.xml'))  # in-gaap
-    q_model = QueryExecutor(xbrl_model)
     for i, qspec in enumerate(sample_qspecs, start=1):
         print('Query {}'.format(i))
         print('----------')
-        rows = q_model.query(qspec)
+        rows = executor.query(qspec)
         if not rows:
             continue
         pprint(rows)

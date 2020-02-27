@@ -1,12 +1,11 @@
 class FactSet(set):
-    def by_concept(self, model):
+    def by_concept(self, evaluator):
         try:
             return self._facts_by_concept
         except AttributeError:
-            from rlq.expr.properties import ConceptName
             facts_by_concept = {}
             for fact in self:
-                concept_name = model.get_property(fact, ConceptName())
+                concept_name = evaluator.get_concept_name(fact, None)
                 if concept_name in facts_by_concept:
                     raise ValueError(
                         'Duplicate concept {} in {}. Add more clauses to your '

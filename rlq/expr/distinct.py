@@ -17,22 +17,22 @@ class Distinct(BaseExpr):
     def has_dimension_property(self):
         return any(expr.has_dimension_property for expr in self.exprs)
 
-    def evaluate(self, fact_or_set_or_list, model):
+    def evaluate(self, fact_or_set_or_list, evaluator):
         assert isinstance(fact_or_set_or_list, list)
         if len(self.exprs) == 1:
-            values = [self.exprs[0].evaluate(fs, model) for fs in fact_or_set_or_list]
+            values = [self.exprs[0].evaluate(fs, evaluator) for fs in fact_or_set_or_list]
         else:
-            values = [tuple(e.evaluate(fs, model) for e in self.exprs) for fs in fact_or_set_or_list]
+            values = [tuple(e.evaluate(fs, evaluator) for e in self.exprs) for fs in fact_or_set_or_list]
         if self.ignore_none:
             values = [v for v in values if all(i is None for i in v)]
         if not values:
             return []
         return list(set(values))
 
-    def evaluate_display(self, model, show='label'):
+    def evaluate_display(self, evaluator, show='label'):
         return '{}({})'.format(
             type(self).__name__.upper(),
-            ', '.join(e.evaluate_display(model, show=show) for e in self.exprs))
+            ', '.join(e.evaluate_display(evaluator, show=show) for e in self.exprs))
 
     def __repr__(self):
         return '{}({})'.format(type(self).__name__, ', '.join(repr(e) for e in self.exprs))
