@@ -57,6 +57,7 @@ def load_xbrl_model(file_path, taxonomies_dir=None):
     else:
         PackageManager.init(controller)
     model_manager = ModelManager(controller)
+    model_manager.abortOnMajorError = True
     xbrl_model = model_manager.load(file_path)
     loadDimensionDefaults(xbrl_model)
     return xbrl_model
