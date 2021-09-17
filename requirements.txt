@@ -1,1 +1,1 @@
--e git+https://github.com/Arelle/Arelle#egg=arelle
+arelle
