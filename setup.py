@@ -17,8 +17,8 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     long_description=long_description,
     url='https://github.com/parthjoshi2007/rlq',
-    dependency_links=['git+https://github.com/Arelle/Arelle.git#egg=Arelle-1.0.0'],
-    install_requires=['Arelle==1.0.0'],
+    # dependency_links=['git+https://github.com/Arelle/Arelle.git#egg=Arelle-1.0.0'],
+    install_requires=['arelle'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
