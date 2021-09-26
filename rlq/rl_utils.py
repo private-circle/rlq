@@ -45,8 +45,9 @@ def save_taxonomy_config(taxonomies_dir, controller=None):
         controller = Cntlr(logFileName='logToStdErr')
     PackageManager.init(controller)
     for taxonomy_zip in os.listdir(taxonomies_dir):
-        taxonomy_zip_path = os.path.join(taxonomies_dir, taxonomy_zip)
-        PackageManager.addPackage(controller, taxonomy_zip_path)
+        if taxonomy_zip.endswith('.zip'):
+            taxonomy_zip_path = os.path.join(taxonomies_dir, taxonomy_zip)
+            PackageManager.addPackage(controller, taxonomy_zip_path)
     PackageManager.save(controller)
 
 
